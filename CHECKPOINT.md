@@ -15,5 +15,9 @@
 ## 진행 상황
 - [x] 0단계: 폴더 구조, requirements, .gitignore, config.py(설정/포터블 모드), formats.py, archives.py, books.py, loader.py 초안
 
+- [x] 1단계: viewer.py(맞춤/확대/끌기/클릭·휠 이동), animation.py(GIF·WebP=QMovie 스트리밍, APNG=Pillow),
+      main_window.py, app.py, 대용량 축소 디코딩, EXIF 회전. 테스트 14개 통과 + 스크린샷 확인
+  - 발견/수정: Qt TIFF 플러그인이 Pillow libtiff와 충돌해 크래시 → TIFF는 Pillow로만 디코딩
+
 ## 다음에 이어서 할 것
-- 1단계: ui/viewer.py, ui/animation.py, ui/main_window.py, app.py 작성 후 오프스크린 GUI 테스트
+- 2단계: 압축 백엔드 테스트(zip cp949, cbz 하위폴더, 7z, tar.gz, rar), 비밀번호, 미리 읽기 확인

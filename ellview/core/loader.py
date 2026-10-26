@@ -15,6 +15,11 @@ QImageReader.setAllocationLimit(4096)  # MB. 기본 256MB 제한 때문에 큰 �
 
 _pil_ready = False
 
+# Qt보다 Pillow가 잘 여는 형식
+PILLOW_FIRST = {".avif", ".heic", ".heif", ".jxl", ".psd", ".apng", ".dds", ".qoi", ".pcx"}
+# Qt의 TIFF 플러그인은 Pillow의 libtiff와 한 프로세스에서 충돌(크래시)할 수 있어 Pillow만 사용
+PILLOW_ONLY = {".tif", ".tiff"}
+
 
 def _init_pillow():
     global _pil_ready
@@ -141,8 +146,12 @@ def decode(data: bytes, name: str, max_megapixels: float = 120, target: QSize | 
     res = None
     err = None
     ext = ext_of(name)
-    try_qt_first = ext not in (".avif", ".heic", ".heif", ".jxl", ".psd", ".apng", ".dds", ".qoi")
-    order = (_decode_with_qt, _decode_with_pillow) if try_qt_first else (_decode_with_pillow, _decode_with_qt)
+    if ext in PILLOW_ONLY:
+        order = (_decode_with_pillow,)
+    elif ext in PILLOW_FIRST:
+        order = (_decode_with_pillow, _decode_with_qt)
+    else:
+        order = (_decode_with_qt, _decode_with_pillow)
     for fn in order:
         try:
             res = fn(data, max_pixels, target)
