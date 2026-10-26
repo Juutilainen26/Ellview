@@ -72,6 +72,17 @@ def main():
     shot("08_next_book")
     w.act_fit_width()
     shot("09_fit_width")
+    w.act_fit_window()
+    from ellview.core.bookmarks import Bookmark
+    w.bookmarks.add(Bookmark.from_book(w.book, 0, "샘플 책갈피"))
+    from ellview.ui.dialogs import BookmarksDialog, HtmlDialog, SettingsDialog, shortcut_help_html
+    for name, dlg in (("10_bookmarks", BookmarksDialog(w.bookmarks, w)),
+                      ("11_settings", SettingsDialog(w.s, w)),
+                      ("12_help", HtmlDialog("단축키", shortcut_help_html({}), w))):
+        dlg.show()
+        pump(app, 200)
+        dlg.grab().save(os.path.join(out, name + ".png"))
+        dlg.close()
     w.close()
 
 

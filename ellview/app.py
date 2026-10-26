@@ -4,7 +4,7 @@ import os
 import sys
 import traceback
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QLibraryInfo, QLocale, Qt, QTranslator
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -49,6 +49,10 @@ def main(argv=None) -> int:
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(__version__)
     app.setWindowIcon(_icon())
+    # Qt 기본 대화상자(확인/취소 등) 한국어화
+    tr = QTranslator(app)
+    if tr.load(QLocale(QLocale.Korean), "qtbase", "_", QLibraryInfo.path(QLibraryInfo.TranslationsPath)):
+        app.installTranslator(tr)
 
     from ellview.core.archives import cleanup_cache
     from ellview.ui.main_window import MainWindow
@@ -62,4 +66,17 @@ def main(argv=None) -> int:
     args = [a for a in argv[1:] if not a.startswith("-")]
     if args:
         win.open_any(os.path.abspath(args[0]))
+    if "--smoke-test" in argv:
+        # 빌드 검증용: 잠깐 띄웠다가 상태를 파일로 남기고 종료 (CI에서 exe 동작 확인)
+        from PySide6.QtCore import QTimer
+
+        def finish():
+            info = {"version": __version__, "book": win.book.path if win.book else None,
+                    "pages": len(win.book) if win.book else 0,
+                    "first_ok": bool(win.viewer.pages and win.viewer.pages[0].dec.error is None)}
+            import json
+            (data_dir() / "smoke.json").write_text(json.dumps(info, ensure_ascii=False), encoding="utf-8")
+            win.close()
+            app.quit()
+        QTimer.singleShot(1500, finish)
     return app.exec()

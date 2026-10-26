@@ -33,6 +33,8 @@ class BookmarksDialog(QDialog):
         h = self.table.horizontalHeader()
         h.setSectionResizeMode(0, QHeaderView.Interactive)
         h.setSectionResizeMode(1, QHeaderView.Stretch)
+        h.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        h.setSectionResizeMode(3, QHeaderView.ResizeToContents)
         self.table.setColumnWidth(0, 200)
         self.table.doubleClicked.connect(lambda _: self._open())
         lay.addWidget(self.table)
