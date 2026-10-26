@@ -1,0 +1,5 @@
+PySide6-Essentials>=6.7
+Pillow>=11.3
+pillow-heif>=0.18
+py7zr>=0.22
+rarfile>=4.2
