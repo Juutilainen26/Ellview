@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, QPoint, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
-from PySide6.QtGui import QColor, QIcon, QPixmap
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QListView, QListWidget, QListWidgetItem
 
 from ellview.core.loader import decode
@@ -109,4 +109,11 @@ class ThumbnailList(QListWidget):
         if self.book is None or path != self.book.path or index >= self.count():
             return
         if img is not None and not img.isNull():
-            self.item(index).setIcon(QIcon(QPixmap.fromImage(img)))
+            # 모든 썸네일을 같은 크기 캔버스 가운데에 그려 목록 정렬을 맞춤
+            canvas = QPixmap(THUMB)
+            canvas.fill(Qt.transparent)
+            scaled = img.scaled(THUMB, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            p = QPainter(canvas)
+            p.drawImage((THUMB.width() - scaled.width()) // 2, (THUMB.height() - scaled.height()) // 2, scaled)
+            p.end()
+            self.item(index).setIcon(QIcon(canvas))

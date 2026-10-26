@@ -21,7 +21,9 @@ def win(qapp, tmp_path):
     w = MainWindow(s, History(), BookmarkStore())
     w.resize(1000, 760)
     w.show()
-    qapp.processEvents()
+    w.activateWindow()
+    QTest.qWaitForWindowActive(w)
+    w.viewer.setFocus()
     yield w
     w.close()
     qapp.processEvents()

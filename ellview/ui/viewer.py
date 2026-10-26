@@ -63,8 +63,11 @@ class Toast(QLabel):
     def show_text(self, text: str, ms: int = 1800):
         self.setText(text)
         pw = self.parentWidget().width()
-        self.setMaximumWidth(max(200, int(pw * 0.8)))
-        self.adjustSize()
+        fm = self.fontMetrics()
+        longest = max((fm.horizontalAdvance(line) for line in text.split("\n")), default=100)
+        w = min(max(200, int(pw * 0.9)), longest + 48)
+        self.setFixedWidth(w)
+        self.setFixedHeight(self.heightForWidth(w) if self.heightForWidth(w) > 0 else self.sizeHint().height())
         self.reposition()
         self.show()
         self.raise_()
