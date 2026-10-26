@@ -16,7 +16,7 @@ from typing import Any
 
 from ellview import APP_NAME
 
-SETTINGS_SCHEMA = 1
+SETTINGS_SCHEMA = 2
 
 DEFAULTS: dict[str, Any] = {
     "schema": SETTINGS_SCHEMA,
@@ -36,8 +36,10 @@ DEFAULTS: dict[str, Any] = {
     # 동작
     "wheel_mode": "page",          # page: 휠=페이지 이동(넘칠 때는 스크롤 후 이동) | scroll: 휠=스크롤만
     "click_navigation": True,      # 화면 좌/우 클릭으로 페이지 이동
-    "boundary_action": "prompt",   # prompt: 안내 후 한 번 더 누르면 이동 | auto: 바로 이동 | stop: 이동 안 함
-    "prev_book_start": "last",     # 이전 파일로 갈 때 시작 위치: last | first
+    # 휠·방향키·클릭으로 처음/끝을 넘어가려 할 때
+    #   stop: 넘어가지 않고 알림만 (파일 이동은 [ ] / Ctrl+←→) | prompt: 안내 후 한 번 더 넘기면 이동 | auto: 바로 이동
+    "boundary_action": "stop",
+    "prev_book_start": "last",     # prompt/auto에서 첫 페이지를 넘어 이전 파일로 갈 때 시작 위치: last | first
     "resume_last_page": True,
     "preload_ahead": 3,
     "preload_behind": 1,
@@ -111,7 +113,14 @@ class Settings:
             for k, v in raw.items():
                 if k in DEFAULTS:
                     self.data[k] = v
+            self._migrate(int(raw.get("schema", 1) or 1))
         self.data["schema"] = SETTINGS_SCHEMA
+
+    def _migrate(self, old_schema: int):
+        """이전 버전 설정 파일을 새 기본 동작에 맞게 옮깁니다."""
+        if old_schema < 2 and self.data.get("boundary_action") == "prompt":
+            # 0.2.1: 휠·방향키로는 파일을 넘기지 않고 알림만 (예전 기본값 prompt를 쓰던 경우만 변경)
+            self.data["boundary_action"] = "stop"
 
     def get(self, key: str, default: Any = None) -> Any:
         return self.data.get(key, DEFAULTS.get(key, default))

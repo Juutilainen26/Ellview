@@ -17,6 +17,7 @@ def win(qapp):
     from ellview.ui.main_window import MainWindow
     s = Settings()
     s["check_updates"] = False
+    s["boundary_action"] = "prompt"  # 이 파일은 '안내 후 이동' 모드를 검사 (0.2.1부터 기본값은 stop)
     w = MainWindow(s, History(), BookmarkStore())
     w.resize(900, 700)
     w.show()

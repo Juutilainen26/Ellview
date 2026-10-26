@@ -130,11 +130,15 @@ class SettingsDialog(QDialog):
         # --- 일반
         g = QWidget()
         f = QFormLayout(g)
-        self.boundary = _combo([("prompt", "안내 후 한 번 더 넘기면 이동"), ("auto", "바로 다음 파일로 이동"),
-                                ("stop", "이동하지 않음")], settings["boundary_action"])
-        f.addRow("처음/끝에서 넘길 때", self.boundary)
+        self.boundary = _combo([("stop", "넘어가지 않고 알림만 (파일 이동은 [ ] 키)"),
+                                ("prompt", "안내 후 한 번 더 넘기면 이동"), ("auto", "바로 옆 파일로 이동")],
+                               settings["boundary_action"])
+        f.addRow("휠·방향키로 처음/끝을 넘길 때", self.boundary)
         self.prev_start = _combo([("last", "마지막 페이지부터"), ("first", "첫 페이지부터")], settings["prev_book_start"])
-        f.addRow("이전 파일로 갈 때", self.prev_start)
+        f.addRow("  └ 뒤로 넘겨 이전 파일로 갈 때", self.prev_start)
+        self.boundary.currentIndexChanged.connect(
+            lambda _i: self.prev_start.setEnabled(self.boundary.currentData() != "stop"))
+        self.prev_start.setEnabled(settings["boundary_action"] != "stop")
         self.resume = QCheckBox("다시 열면 마지막으로 보던 페이지부터")
         self.resume.setChecked(settings["resume_last_page"])
         f.addRow(self.resume)

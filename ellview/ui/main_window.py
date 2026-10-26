@@ -450,7 +450,18 @@ class MainWindow(QMainWindow):
         word = "마지막" if direction > 0 else "첫"
         target = neighbor_book(self.book.path, direction) if mode != "stop" else None
         if mode == "stop":
-            self.viewer.toast.show_text(f"{word} 페이지입니다")
+            # 넘어가지 않고 알림만. 옆 파일이 있으면 이름과 이동 단축키를 함께 알려줌
+            target = neighbor_book(self.book.path, direction)
+            if target is None:
+                self.viewer.toast.show_text(f"{word} 페이지예요 ({'다음' if direction > 0 else '이전'} 파일이 없어요)")
+                return
+            aid = "next_book" if direction > 0 else "prev_book"
+            ks = sorted(keys_for(aid, self.s["shortcuts"] or {}), key=len)[:2]  # 짧은 키([ ])부터
+            keys = " 또는 ".join(k.replace("Right", "→").replace("Left", "←") for k in ks) or "메뉴"
+            self.viewer.toast.show_text(
+                f"{word} 페이지예요\n{'다음' if direction > 0 else '이전'} 파일: {os.path.basename(target)}\n"
+                f"이동하려면 {keys} 키를 눌러주세요",
+                2500)
             return
         if target is None:
             self.viewer.toast.show_text(f"{word} 페이지입니다\n({'다음' if direction > 0 else '이전'} 파일이 없어요)")
@@ -464,14 +475,15 @@ class MainWindow(QMainWindow):
             f"{'다음' if direction > 0 else '이전'} 파일로 이동: {os.path.basename(target)}",
             int(BOUNDARY_TIMEOUT * 1000))
 
-    def go_book(self, direction: int, target: str | None = None) -> bool:
+    def go_book(self, direction: int, target: str | None = None, first: bool = False) -> bool:
+        """first=True면 방향과 관계없이 첫 페이지부터 ([ ] / Ctrl+←→ 단축키)."""
         if self.book is None:
             return False
         target = target or neighbor_book(self.book.path, direction)
         if not target:
             self.viewer.toast.show_text(f"{'다음' if direction > 0 else '이전'} 파일이 없어요")
             return False
-        if direction > 0:
+        if direction > 0 or first:
             start = 0
         else:
             start = "last" if self.s["prev_book_start"] == "last" else 0
@@ -581,10 +593,10 @@ class MainWindow(QMainWindow):
             self.show_index(last_start(len(self.book), self.s["two_page"], self.s["cover_single"], self._is_wide))
 
     def act_next_book(self):
-        self.go_book(+1)
+        self.go_book(+1, first=True)
 
     def act_prev_book(self):
-        self.go_book(-1)
+        self.go_book(-1, first=True)
 
     def act_confirm(self):
         if self._boundary and time.monotonic() - self._boundary[2] < BOUNDARY_TIMEOUT:
