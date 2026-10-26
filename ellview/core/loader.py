@@ -64,7 +64,8 @@ def _is_animated(data: bytes, name: str) -> bool:
     from PIL import Image
     try:
         with Image.open(io.BytesIO(data)) as im:
-            return bool(getattr(im, "is_animated", False)) and getattr(im, "n_frames", 1) > 1
+            # n_frames는 GIF 전체를 훑어야 해서 큰 파일에서 느림 → is_animated(2번째 프레임 존재 여부)만 확인
+            return bool(getattr(im, "is_animated", False))
     except Exception:
         return False
 

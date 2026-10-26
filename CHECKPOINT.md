@@ -35,5 +35,11 @@
       전체 화면, 설정 대화상자(일반/보기/책갈피 폴더/단축키), 단축키 중복 검사, Qt 한국어 번역,
       실행 진입점 --smoke-test. 테스트 59개 통과 + 대화상자 화면 확인
 
+- [x] 6단계: 아이콘, ellview.spec(onedir, 불필요 Qt 모듈 제외), scripts/build.py(버전 리소스, 7-Zip 동봉, zip),
+      GitHub Actions(ci.yml: Windows+Ubuntu 테스트 / release.yml: 태그 → 테스트 → exe 빌드 → exe 실행 확인 → 릴리스),
+      README/CHANGELOG/LICENSE, 업데이트 확인. 리눅스에서 실제 빌드 + 빌드된 실행 파일로 압축 4종 열기 확인
+  - 자체 점검 중 수정: 좌우 클릭 0.5초 지연 제거, 큰 GIF 애니메이션 판별 시 전체 스캔 제거
+  - 성능: 300프레임 GIF 열기 0.01초, 140MP JPEG 축소 디코딩 2.8초. 테스트 65개 통과
+
 ## 다음에 이어서 할 것
-- 6단계: 아이콘, PyInstaller spec(onedir, 7z 동봉), GitHub Actions(테스트 + 태그 시 Windows exe 릴리스), README/CHANGELOG/LICENSE
+- 7단계: 사용자 PC(Desktop\Python\AI\Ellview)로 복사 후 해시 비교, GitHub 업로드 안내

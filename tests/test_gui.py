@@ -108,3 +108,16 @@ def test_formats_folder_shows_error_page_without_crash(win, lib, qapp):
     ok = dict(seen)
     assert ok["g_broken.jpg"] is False
     assert all(v for k, v in ok.items() if k != "g_broken.jpg")
+
+
+def test_side_click_is_immediate_and_double_click_center_fullscreen(win, lib, qapp):
+    win.open_any(lib["folder"])
+    v = win.viewer
+    QTest.mouseClick(v, Qt.LeftButton, Qt.NoModifier, QPoint(v.width() - 10, 100))
+    assert win.index == 1, "기다림 없이 바로 넘어감"
+    QTest.mouseDClick(v, Qt.LeftButton, Qt.NoModifier, QPoint(v.width() // 2, v.height() // 2))
+    qapp.processEvents()
+    assert win.isFullScreen()
+    win.act_escape()
+    qapp.processEvents()
+    assert not win.isFullScreen()

@@ -5,7 +5,7 @@ import time
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPixmap
-from PySide6.QtWidgets import QApplication, QLabel, QWidget
+from PySide6.QtWidgets import QLabel, QWidget
 
 from ellview.core.loader import Decoded
 from ellview.ui.animation import AnimPlayer
@@ -111,9 +111,6 @@ class Viewer(QWidget):
         self._edge_time = 0.0
         self._last_scroll_time = 0.0
         self.toast = Toast(self)
-        self._click_timer = QTimer(self)
-        self._click_timer.setSingleShot(True)
-        self._click_timer.timeout.connect(self._do_click)
         self._pending_click = None
 
     # ------------------------------------------------------------ 페이지
@@ -329,8 +326,9 @@ class Viewer(QWidget):
         if e.button() == Qt.LeftButton:
             self.unsetCursor()
             if not self._moved and self._press_pos is not None and self.click_navigation:
+                # 양옆 영역은 기다리지 않고 바로 넘김 (가운데 영역만 더블클릭=전체 화면에 사용)
                 self._pending_click = self._press_pos.x()
-                self._click_timer.start(QApplication.doubleClickInterval())
+                self._do_click()
             self._drag_pos = None
             self._press_pos = None
         super().mouseReleaseEvent(e)
@@ -340,18 +338,23 @@ class Viewer(QWidget):
         self._pending_click = None
         if x is None:
             return
-        w = self.width()
-        left = x < w * 0.35
-        right = x > w * 0.65
-        if not (left or right):
+        if not self._in_side_zone(x):
             return
+        right = x > self.width() * 0.65
         go_next = right != self.rtl  # RTL이면 왼쪽 클릭이 다음
         (self.nextRequested if go_next else self.prevRequested).emit()
 
+    def _in_side_zone(self, x: float) -> bool:
+        return self.click_navigation and (x < self.width() * 0.35 or x > self.width() * 0.65)
+
     def mouseDoubleClickEvent(self, e):
         if e.button() == Qt.LeftButton:
-            self._click_timer.stop()
-            self._pending_click = None
+            if self._in_side_zone(e.position().x()):
+                # 양옆을 빠르게 두 번 누른 것 = 두 장 넘기기 (두 번째 넘김은 이어지는 release에서 처리)
+                self._press_pos = e.position()
+                self._drag_pos = e.position()
+                self._moved = False
+                return
             self.doubleClicked.emit()
 
     def wheelEvent(self, e):
