@@ -13,6 +13,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 os.environ["ELLVIEW_DATA_DIR"] = tempfile.mkdtemp()
 
+from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from samples import build_library  # noqa: E402
@@ -73,6 +74,22 @@ def main():
     w.act_fit_width()
     shot("09_fit_width")
     w.act_fit_window()
+    # v0.2.0: 화살표 / 회전
+    from PySide6.QtCore import QEvent, QPointF
+    from PySide6.QtGui import QMouseEvent
+    w.open_any(lib["folder"])
+    for name, x in (("13_hover_left", 30), ("14_hover_right", w.viewer.width() - 30)):
+        ev = QMouseEvent(QEvent.MouseMove, QPointF(x, 300), w.viewer.mapToGlobal(QPointF(x, 300)),
+                         Qt.NoButton, Qt.NoButton, Qt.NoModifier)
+        app.sendEvent(w.viewer, ev)
+        shot(name)
+    app.sendEvent(w.viewer, QEvent(QEvent.Leave))
+    w.act_next_page()
+    w.act_rotate_right()
+    w.act_flip_h()
+    w.viewer.toast.hide()
+    shot("15_rotate_flip")
+    w.act_reset_orientation()
     from ellview.core.bookmarks import Bookmark
     w.bookmarks.add(Bookmark.from_book(w.book, 0, "샘플 책갈피"))
     from ellview.ui.dialogs import BookmarksDialog, HtmlDialog, SettingsDialog, shortcut_help_html

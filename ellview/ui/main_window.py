@@ -74,6 +74,11 @@ class MainWindow(QMainWindow):
         self.spread: list[int] = []
         self._boundary = None  # (방향, 대상 경로, 시각)
         self._fullscreen_restore = None
+        # 회전/반전: 프로그램을 끌 때까지 유지 (설정 파일에 저장하지 않음)
+        self.rotation = 0
+        self.flip = False
+        self.slide_timer = QTimer(self)
+        self.slide_timer.timeout.connect(self._slide_tick)
 
         self.setWindowTitle(APP_NAME)
         self.resize(1100, 800)
@@ -138,7 +143,7 @@ class MainWindow(QMainWindow):
             a = QAction(label, self)
             a.setShortcuts([QKeySequence(k) for k in keys_for(aid, overrides)])
             a.setShortcutContext(Qt.WindowShortcut)
-            if aid in TOGGLE_ACTIONS or aid in FIT_ACTIONS or aid == "toggle_fullscreen":
+            if aid in TOGGLE_ACTIONS or aid in FIT_ACTIONS or aid in ("toggle_fullscreen", "toggle_slideshow", "flip_h"):
                 a.setCheckable(True)
             handler = getattr(self, "act_" + aid, None)
             if handler is not None:
@@ -178,8 +183,14 @@ class MainWindow(QMainWindow):
         m.addSeparator()
         m.addActions([A["toggle_two_page"], A["toggle_rtl"], A["toggle_cover"]])
         m.addSeparator()
-        m.addActions([A["toggle_fullscreen"], A["toggle_thumbnails"], A["toggle_statusbar"],
+        m.addSeparator()
+        m.addActions([A["rotate_right"], A["rotate_left"], A["flip_h"], A["reset_orientation"]])
+        m.addSeparator()
+        m.addActions([A["toggle_fullscreen"], A["toggle_slideshow"], A["toggle_thumbnails"], A["toggle_statusbar"],
                       A["toggle_info"], A["toggle_animation"]])
+
+        m = mb.addMenu("편집(&E)")
+        m.addActions([A["copy_image"], A["copy_path"]])
 
         m = mb.addMenu("책갈피(&B)")
         m.addActions([A["add_bookmark"], A["show_bookmarks"]])
@@ -197,6 +208,11 @@ class MainWindow(QMainWindow):
         fit = m.addMenu("맞춤")
         fit.addActions([A[k] for k in FIT_ACTIONS])
         m.addActions([A["toggle_two_page"], A["toggle_rtl"], A["toggle_fullscreen"], A["toggle_thumbnails"]])
+        rot = m.addMenu("회전/반전")
+        rot.addActions([A["rotate_right"], A["rotate_left"], A["flip_h"], A["reset_orientation"]])
+        m.addAction(A["toggle_slideshow"])
+        m.addSeparator()
+        m.addActions([A["copy_image"], A["copy_path"]])
         m.addSeparator()
         m.addActions([A["add_bookmark"], A["show_bookmarks"], A["open_location"]])
         m.addSeparator()
@@ -349,6 +365,8 @@ class MainWindow(QMainWindow):
             return False
         d = self.loader.cached(i) or self.loader.get_sync(i)
         sz = d.orig_size if d.orig_size.isValid() else d.image.size()
+        if self.rotation in (90, 270):
+            sz = sz.transposed()
         return sz.width() > sz.height() * 1.05
 
     def _spread(self, i):
@@ -374,6 +392,8 @@ class MainWindow(QMainWindow):
         ahead = range(last + 1, last + 1 + int(self.s["preload_ahead"]))
         behind = range(max(0, i - int(self.s["preload_behind"])), i)
         self.loader.prefetch(list(ahead) + list(behind))
+        if self.slide_timer.isActive():
+            self.slide_timer.start()  # 직접 넘겼으면 간격을 처음부터 다시 셈
 
     def _update_status(self):
         if self.book is None:
@@ -404,6 +424,12 @@ class MainWindow(QMainWindow):
             mode.append("두 페이지")
         if self.s["rtl"]:
             mode.append("RTL")
+        if self.rotation:
+            mode.append(f"회전 {self.rotation}°")
+        if self.flip:
+            mode.append("좌우 반전")
+        if self.slide_timer.isActive():
+            mode.append(f"슬라이드쇼 {self.s['slideshow_interval']:g}초")
         self.status_label.setText(f"[{nums} / {n}]  " + "  |  ".join(parts) + f"  |  {zoom}"
                                   + (f"  |  {' · '.join(mode)}" if mode else ""))
         if self.s["info_overlay"]:
@@ -486,6 +512,7 @@ class MainWindow(QMainWindow):
             QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.dirname(target)))
 
     def act_close_book(self):
+        self._stop_slideshow(quiet=True)
         self._remember_position()
         if self.book is not None:
             self.book.close()
@@ -674,8 +701,100 @@ class MainWindow(QMainWindow):
         if self._boundary:
             self._boundary = None
             self.viewer.toast.hide()
+        elif self.slide_timer.isActive():
+            self._stop_slideshow()
         elif self.isFullScreen():
             self._leave_fullscreen()
+
+    # ================================================================ 액션 구현: 회전/반전
+    def _apply_orientation(self, msg: str):
+        self.actions["flip_h"].setChecked(self.flip)
+        self.viewer.set_orientation(self.rotation, self.flip)
+        if self.s["two_page"]:
+            self._redisplay()  # 회전하면 가로/세로가 바뀌어 두 페이지 배치가 달라질 수 있음
+        self._update_status()
+        self.viewer.toast.show_text(msg, 1000)
+
+    def act_rotate_right(self):
+        self.rotation = (self.rotation + 90) % 360
+        self._apply_orientation(f"회전 {self.rotation}°")
+
+    def act_rotate_left(self):
+        self.rotation = (self.rotation - 90) % 360
+        self._apply_orientation(f"회전 {self.rotation}°")
+
+    def act_flip_h(self):
+        self.flip = not self.flip
+        self._apply_orientation("좌우 반전" if self.flip else "좌우 반전 해제")
+
+    def act_reset_orientation(self):
+        self.rotation, self.flip = 0, False
+        self._apply_orientation("회전/반전 초기화")
+
+    # ================================================================ 액션 구현: 복사
+    def act_copy_image(self):
+        if not self.viewer.pages:
+            return
+        page = self.viewer.pages[0]
+        img = page.image()
+        if img.isNull():
+            self.viewer.toast.show_text("복사할 이미지가 없어요")
+            return
+        QApplication.clipboard().setImage(img)
+        note = " (축소된 크기)" if page.dec.downscaled else ""
+        self.viewer.toast.show_text(f"이미지를 복사했어요{note}", 1200)
+
+    def act_copy_path(self):
+        if self.book is None or not len(self.book):
+            return
+        QApplication.clipboard().setText(self.book.page_location(self.index))
+        self.viewer.toast.show_text("경로를 복사했어요", 1200)
+
+    # ================================================================ 액션 구현: 슬라이드쇼
+    def act_toggle_slideshow(self):
+        if self.slide_timer.isActive():
+            self._stop_slideshow()
+        else:
+            self._start_slideshow()
+
+    def _start_slideshow(self):
+        if self.book is None:
+            self.actions["toggle_slideshow"].setChecked(False)
+            return
+        sec = max(0.2, float(self.s["slideshow_interval"]))
+        self.slide_timer.start(int(sec * 1000))
+        self.actions["toggle_slideshow"].setChecked(True)
+        self._update_status()
+        self.viewer.toast.show_text(f"슬라이드쇼 시작 ({sec:g}초 간격, S 또는 Esc로 정지)", 1500)
+
+    def _stop_slideshow(self, quiet: bool = False):
+        was = self.slide_timer.isActive()
+        self.slide_timer.stop()
+        self.actions["toggle_slideshow"].setChecked(False)
+        self._update_status()
+        if was and not quiet:
+            self.viewer.toast.show_text("슬라이드쇼 정지", 1000)
+
+    def _slide_tick(self):
+        if self.book is None:
+            self._stop_slideshow(quiet=True)
+            return
+        ni = (self.spread[-1] if self.spread else self.index) + 1
+        if ni < len(self.book):
+            self.show_index(ni)
+            return
+        end = self.s["slideshow_end"]
+        if end == "loop":
+            self.show_index(0)
+        elif end == "next_book":
+            target = neighbor_book(self.book.path, +1)
+            if target and self.go_book(+1, target):
+                return
+            self._stop_slideshow(quiet=True)
+            self.viewer.toast.show_text("마지막 파일이라 슬라이드쇼를 멈췄어요", 2000)
+        else:
+            self._stop_slideshow(quiet=True)
+            self.viewer.toast.show_text("마지막 페이지라 슬라이드쇼를 멈췄어요", 2000)
 
     # ================================================================ 액션 구현: 책갈피
     def act_add_bookmark(self):
@@ -725,13 +844,32 @@ class MainWindow(QMainWindow):
 
     # ================================================================ 액션 구현: 도구
     def act_settings(self):
+        before_shell = bool(self.s["shell_menu"])
         dlg = SettingsDialog(self.s, self)
         if dlg.exec():
+            self._apply_shell_menu(before_shell)
             from ellview.ui.theme import apply_theme
             apply_theme(QApplication.instance(), self.s["theme"])
             self.reload_shortcuts()
             self.apply_settings()
             self._redisplay()
+
+    def _apply_shell_menu(self, before: bool):
+        from ellview.core import shell_menu
+        want = bool(self.s["shell_menu"])
+        if want == before or not shell_menu.supported():
+            return
+        try:
+            if want:
+                shell_menu.register()
+                self.viewer.toast.show_text("탐색기 우클릭 메뉴에 'Ellview로 열기'를 추가했어요", 2500)
+            else:
+                shell_menu.unregister()
+                self.viewer.toast.show_text("탐색기 우클릭 메뉴에서 'Ellview로 열기'를 지웠어요", 2500)
+        except OSError as e:
+            self.s["shell_menu"] = before
+            self.s.save()
+            QMessageBox.warning(self, "탐색기 메뉴", f"레지스트리에 쓰지 못했어요.\n{e}")
 
     def act_shortcut_help(self):
         HtmlDialog("단축키", shortcut_help_html(self.s["shortcuts"] or {}), self).exec()

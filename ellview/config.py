@@ -44,6 +44,9 @@ DEFAULTS: dict[str, Any] = {
     "cache_mb": 512,
     "max_decode_megapixels": 120,  # 이보다 큰 이미지는 축소 디코딩
     "check_updates": True,
+    "slideshow_interval": 3.0,     # 초
+    "slideshow_end": "next_book",  # next_book | loop | stop
+    "shell_menu": False,           # 탐색기 우클릭 메뉴 등록 여부
     # 책갈피 재탐색 시 뒤져볼 폴더들
     "library_roots": [],
     "relocate_max_depth": 6,

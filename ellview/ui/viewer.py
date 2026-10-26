@@ -4,13 +4,14 @@ from __future__ import annotations
 import time
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPixmap
+from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPainterPath, QPen, QPixmap, QTransform
 from PySide6.QtWidgets import QLabel, QWidget
 
 from ellview.core.loader import Decoded
 from ellview.ui.animation import AnimPlayer
 
 FIT_MODES = ("window", "width", "height", "original")
+SIDE_ZONE = 0.2  # 화면을 세로로 5등분했을 때 맨 왼쪽/오른쪽 한 칸만 클릭 넘김 영역
 
 
 class PageImage:
@@ -25,19 +26,50 @@ class PageImage:
                 self.player = None
         self._scaled: QPixmap | None = None
         self._scaled_key = None
+        self.rotation = 0      # 0/90/180/270 (시계 방향)
+        self.flip = False      # 좌우 반전
+        self._oriented: QImage | None = None
+        self._oriented_key = None
+
+    def set_orientation(self, rotation: int, flip: bool):
+        if (rotation, flip) != (self.rotation, self.flip):
+            self.rotation, self.flip = rotation % 360, flip
+            self._scaled_key = None
 
     @property
-    def size(self) -> QSize:
+    def raw_size(self) -> QSize:
         if self.dec.orig_size.isValid() and not self.dec.orig_size.isEmpty():
             return self.dec.orig_size
         if not self.dec.image.isNull():
             return self.dec.image.size()
         return QSize(800, 1100)
 
-    def image(self) -> QImage:
+    @property
+    def size(self) -> QSize:
+        sz = self.raw_size
+        return sz.transposed() if self.rotation in (90, 270) else sz
+
+    def raw_image(self) -> QImage:
         if self.player is not None:
             return self.player.current_image()
         return self.dec.image
+
+    def image(self) -> QImage:
+        """회전/반전이 적용된 이미지."""
+        img = self.raw_image()
+        if not self.rotation and not self.flip or img.isNull():
+            return img
+        if self.player is None and self._oriented_key == (self.rotation, self.flip):
+            return self._oriented
+        out = img
+        if self.flip:
+            # Qt 6.9+는 flipped, 그 이전은 mirrored
+            out = out.flipped(Qt.Horizontal) if hasattr(out, "flipped") else out.mirrored(True, False)
+        if self.rotation:
+            out = out.transformed(QTransform().rotate(self.rotation))
+        if self.player is None:
+            self._oriented, self._oriented_key = out, (self.rotation, self.flip)
+        return out
 
     def stop(self):
         if self.player is not None:
@@ -112,6 +144,10 @@ class Viewer(QWidget):
         self._last_scroll_time = 0.0
         self.toast = Toast(self)
         self._pending_click = None
+        self.rotation = 0
+        self.flip = False
+        self._hover_zone = None  # 'left' | 'right' | None
+        self.setMouseTracking(True)
 
     # ------------------------------------------------------------ 페이지
     def set_pages(self, pages: list[PageImage], anchor: str = "start"):
@@ -120,6 +156,7 @@ class Viewer(QWidget):
                 p.stop()
         self.pages = pages
         for p in pages:
+            p.set_orientation(self.rotation, self.flip)
             if p.player is not None:
                 p.player.frameChanged.connect(self.update)
                 p.player.start()
@@ -128,6 +165,14 @@ class Viewer(QWidget):
 
     def clear(self):
         self.set_pages([])
+
+    def set_orientation(self, rotation: int, flip: bool):
+        """회전/반전은 뷰어에 남아 있어서 페이지·파일을 넘겨도 유지됩니다 (설정 파일에는 저장 안 함)."""
+        self.rotation, self.flip = rotation % 360, flip
+        for p in self.pages:
+            p.set_orientation(self.rotation, self.flip)
+        self._reset_scroll("start")
+        self.update()
 
     def _reset_scroll(self, anchor):
         dw, dh = self.display_size()
@@ -290,6 +335,8 @@ class Viewer(QWidget):
                 p.drawPixmap(int(round(r.x())), int(round(r.y())), page._scaled)
             else:
                 p.drawImage(r, img)
+        if self._hover_zone and self._drag_pos is None:
+            self._paint_arrow(p, self._hover_zone)
         if self.info_text:
             f = QFont(self.font())
             f.setPointSize(10)
@@ -298,6 +345,50 @@ class Viewer(QWidget):
             p.fillRect(br.adjusted(-8, -6, 8, 6), QColor(0, 0, 0, 160))
             p.setPen(QColor(235, 235, 235))
             p.drawText(br, Qt.TextWordWrap, self.info_text)
+
+    def _paint_arrow(self, p: QPainter, zone: str):
+        w, h = self.width(), self.height()
+        zw = w * SIDE_ZONE
+        x0 = 0 if zone == "left" else w - zw
+        p.fillRect(QRectF(x0, 0, zw, h), QColor(255, 255, 255, 14))
+        cx = x0 + zw / 2
+        cy = h / 2
+        r = max(22.0, min(34.0, zw * 0.22))
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(0, 0, 0, 140))
+        p.drawEllipse(QPointF(cx, cy), r, r)
+        pen = QPen(QColor(255, 255, 255, 230), max(3.0, r * 0.16), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+        p.setPen(pen)
+        p.setBrush(Qt.NoBrush)
+        a = r * 0.38
+        d = -1 if zone == "left" else 1
+        path = QPainterPath(QPointF(cx - d * a * 0.5, cy - a))
+        path.lineTo(QPointF(cx + d * a * 0.5, cy))
+        path.lineTo(QPointF(cx - d * a * 0.5, cy + a))
+        p.drawPath(path)
+
+    def zone_at(self, x: float) -> str | None:
+        if not self.click_navigation or not self.pages:
+            return None
+        if x < self.width() * SIDE_ZONE:
+            return "left"
+        if x > self.width() * (1 - SIDE_ZONE):
+            return "right"
+        return None
+
+    def _set_hover(self, zone):
+        if zone != self._hover_zone:
+            self._hover_zone = zone
+            if zone:
+                self.setCursor(Qt.PointingHandCursor)
+            else:
+                self.unsetCursor()
+            self.update()
+
+    def leaveEvent(self, e):
+        self._set_hover(None)
+        super().leaveEvent(e)
 
     def resizeEvent(self, e):
         self._clamp()
@@ -313,11 +404,16 @@ class Viewer(QWidget):
         super().mousePressEvent(e)
 
     def mouseMoveEvent(self, e):
+        if not e.buttons():
+            self._set_hover(self.zone_at(e.position().x()))
+            return
         if self._drag_pos is not None and e.buttons() & Qt.LeftButton:
             d = e.position() - self._drag_pos
             if (e.position() - self._press_pos).manhattanLength() > 6:
                 self._moved = True
             if self._moved and any(self.overflow()):
+                if self._hover_zone:
+                    self._set_hover(None)
                 self.setCursor(Qt.ClosedHandCursor)
                 self.scroll_by(-d.x(), -d.y())
             self._drag_pos = e.position()
@@ -325,12 +421,14 @@ class Viewer(QWidget):
     def mouseReleaseEvent(self, e):
         if e.button() == Qt.LeftButton:
             self.unsetCursor()
+            self._hover_zone = None
             if not self._moved and self._press_pos is not None and self.click_navigation:
                 # 양옆 영역은 기다리지 않고 바로 넘김 (가운데 영역만 더블클릭=전체 화면에 사용)
                 self._pending_click = self._press_pos.x()
                 self._do_click()
             self._drag_pos = None
             self._press_pos = None
+            self._set_hover(self.zone_at(e.position().x()))
         super().mouseReleaseEvent(e)
 
     def _do_click(self):
@@ -338,14 +436,14 @@ class Viewer(QWidget):
         self._pending_click = None
         if x is None:
             return
-        if not self._in_side_zone(x):
+        zone = self.zone_at(x)
+        if zone is None:
             return
-        right = x > self.width() * 0.65
-        go_next = right != self.rtl  # RTL이면 왼쪽 클릭이 다음
+        go_next = (zone == "right") != self.rtl  # RTL이면 왼쪽 클릭이 다음
         (self.nextRequested if go_next else self.prevRequested).emit()
 
     def _in_side_zone(self, x: float) -> bool:
-        return self.click_navigation and (x < self.width() * 0.35 or x > self.width() * 0.65)
+        return self.zone_at(x) is not None
 
     def mouseDoubleClickEvent(self, e):
         if e.button() == Qt.LeftButton:

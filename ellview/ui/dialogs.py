@@ -8,7 +8,7 @@ from PySide6.QtGui import QColor, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
     QFormLayout, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QListWidget, QMessageBox, QPushButton,
-    QSpinBox, QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QVBoxLayout, QWidget,
+    QDoubleSpinBox, QSpinBox, QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QVBoxLayout, QWidget,
 )
 
 from ellview import APP_NAME, __version__
@@ -140,12 +140,29 @@ class SettingsDialog(QDialog):
         f.addRow(self.resume)
         self.wheel = _combo([("page", "페이지 넘기기 (넘치면 스크롤 후 넘김)"), ("scroll", "스크롤만")], settings["wheel_mode"])
         f.addRow("마우스 휠", self.wheel)
-        self.click_nav = QCheckBox("화면 왼쪽/오른쪽 클릭으로 페이지 이동")
+        self.click_nav = QCheckBox("화면 양 끝(5분의 1 영역) 클릭으로 페이지 이동")
         self.click_nav.setChecked(settings["click_navigation"])
         f.addRow(self.click_nav)
         self.updates = QCheckBox("시작할 때 업데이트 확인")
         self.updates.setChecked(settings["check_updates"])
         f.addRow(self.updates)
+        self.slide_iv = QDoubleSpinBox()
+        self.slide_iv.setRange(0.5, 120.0)
+        self.slide_iv.setSingleStep(0.5)
+        self.slide_iv.setDecimals(1)
+        self.slide_iv.setSuffix(" 초")
+        self.slide_iv.setValue(float(settings["slideshow_interval"]))
+        f.addRow("슬라이드쇼 간격", self.slide_iv)
+        self.slide_end = _combo([("next_book", "다음 파일로 이어서"), ("loop", "처음 페이지부터 반복"),
+                                 ("stop", "멈춤")], settings["slideshow_end"])
+        f.addRow("슬라이드쇼가 책 끝에 닿으면", self.slide_end)
+        from ellview.core import shell_menu
+        self.shell = QCheckBox("탐색기 우클릭 메뉴에 'Ellview로 열기' 추가 (폴더 · 이미지 · 압축파일)")
+        self.shell.setChecked(bool(settings["shell_menu"]))
+        if not shell_menu.supported():
+            self.shell.setEnabled(False)
+            self.shell.setToolTip("Windows에서만 사용할 수 있어요")
+        f.addRow(self.shell)
         tabs.addTab(g, "일반")
 
         # --- 보기
@@ -282,6 +299,10 @@ class SettingsDialog(QDialog):
         s["wheel_mode"] = self.wheel.currentData()
         s["click_navigation"] = self.click_nav.isChecked()
         s["check_updates"] = self.updates.isChecked()
+        s["slideshow_interval"] = round(self.slide_iv.value(), 1)
+        s["slideshow_end"] = self.slide_end.currentData()
+        if self.shell.isEnabled():
+            s["shell_menu"] = self.shell.isChecked()
         s["theme"] = self.theme.currentData()
         s["background"] = self._bg
         s["smooth"] = self.smooth.isChecked()
@@ -308,7 +329,8 @@ def shortcut_help_html(overrides: dict) -> str:
         ks = ", ".join(keys_for(aid, overrides)) or "-"
         rows.append(f"<tr><td style='padding-right:24px'>{label}</td><td><code>{ks}</code></td></tr>")
     extra = ("<p><b>마우스</b><br>휠: 페이지 이동 (넘치는 이미지는 스크롤 후 이동) · Ctrl+휠: 확대/축소<br>"
-             "왼쪽/오른쪽 클릭: 이전/다음 · 끌기: 이동 · 더블클릭: 전체 화면 · 오른쪽 클릭: 메뉴<br>"
+             "화면 맨 왼쪽/오른쪽 5분의 1 영역 클릭: 이전/다음 (마우스를 올리면 화살표 표시)<br>"
+             "가운데 끌기: 이동 · 가운데 더블클릭: 전체 화면 · 오른쪽 클릭: 메뉴<br>"
              "파일/폴더를 창에 끌어다 놓으면 바로 열립니다.</p>")
     return f"<h3>{APP_NAME} 단축키</h3><table>{''.join(rows)}</table>{extra}"
 

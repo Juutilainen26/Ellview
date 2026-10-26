@@ -63,6 +63,13 @@ def main(argv=None) -> int:
     cleanup_cache()
     win = MainWindow(settings)
     win.show()
+    if settings["shell_menu"]:
+        # exe를 다른 폴더로 옮겼으면 탐색기 메뉴의 실행 경로를 지금 위치로 갱신
+        try:
+            from ellview.core import shell_menu
+            shell_menu.ensure_current()
+        except OSError:
+            pass
     args = [a for a in argv[1:] if not a.startswith("-")]
     if args:
         win.open_any(os.path.abspath(args[0]))
