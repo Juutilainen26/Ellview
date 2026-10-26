@@ -122,4 +122,31 @@ def build_library(root: str) -> dict:
     with open(os.path.join(f, "g_broken.jpg"), "wb") as fp:
         fp.write(b"\xff\xd8\xff\xe0not really a jpeg")
     out["formats"] = f
+    # 8) RAR (무압축)
+    r = os.path.join(root, "08_rar.cbr")
+    make_stored_rar(r, {f"r/{i:02d}.jpg": make_image(500, 760, f"R{i}", (150, 60, 20 * i)) for i in (2, 1, 10, 3)})
+    out["rar"] = r
     return out
+
+
+def make_stored_rar(path, files: dict[str, bytes]):
+    """RAR 실행 파일 없이 '무압축(stored)' RAR4 파일을 직접 만든다 (테스트용)."""
+    import struct
+    import zlib
+
+    def block(htype, flags, body):
+        size = 7 + len(body)
+        head = struct.pack("<BHH", htype, flags, size) + body
+        crc = zlib.crc32(head) & 0xFFFF
+        return struct.pack("<H", crc) + head
+
+    out = bytearray(b"Rar!\x1a\x07\x00")
+    out += block(0x73, 0, b"\x00" * 6)
+    for name, data in files.items():
+        nb = name.encode("ascii")
+        body = struct.pack("<IIBIIBBHI", len(data), len(data), 2, zlib.crc32(data) & 0xFFFFFFFF,
+                           0x5A210000, 20, 0x30, len(nb), 0x20) + nb
+        out += block(0x74, 0x8000, body) + data
+    out += block(0x7B, 0x4000, b"")
+    with open(path, "wb") as f:
+        f.write(out)

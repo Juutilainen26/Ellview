@@ -19,5 +19,9 @@
       main_window.py, app.py, 대용량 축소 디코딩, EXIF 회전. 테스트 14개 통과 + 스크린샷 확인
   - 발견/수정: Qt TIFF 플러그인이 Pillow libtiff와 충돌해 크래시 → TIFF는 Pillow로만 디코딩
 
+- [x] 2단계: zip(CP949 파일명 복원)/cbz(하위폴더, __MACOSX 제외)/7z(임시캐시 + 7-Zip 실행파일 폴백)/tar.*/rar,
+      확장자 오인 자동 판별, 암호 감지, 미리 읽기. 테스트 23개 통과
+  - RAR 압축 해제 도구: tools/UnRAR.exe → 7z.exe → Windows 내장 tar.exe 순. 릴리스에는 7z.exe+7z.dll 동봉 예정(6단계)
+
 ## 다음에 이어서 할 것
-- 2단계: 압축 백엔드 테스트(zip cp949, cbz 하위폴더, 7z, tar.gz, rar), 비밀번호, 미리 읽기 확인
+- 3단계: 처음/끝 경계 안내(prompt/auto/stop), Enter 확인, 이전 파일은 마지막 페이지부터, 빈 폴더 건너뛰기 테스트

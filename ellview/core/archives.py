@@ -18,6 +18,32 @@ from ellview.config import app_base_dir, cache_dir
 from ellview.core.formats import archive_backend_for, is_image_name
 
 
+def find_7z() -> str | None:
+    """번들(tools/7z.exe) → PATH(7z/7zz/7za) → 기본 설치 위치 순으로 7-Zip 실행 파일을 찾습니다."""
+    for cand in ("7z.exe", "7z", "7zz"):
+        p = app_base_dir() / "tools" / cand
+        if p.exists():
+            return str(p)
+    for cand in ("7z", "7zz", "7za"):
+        p = shutil.which(cand)
+        if p:
+            return p
+    if sys.platform == "win32":
+        for env in ("ProgramFiles", "ProgramFiles(x86)"):
+            base = os.environ.get(env)
+            if base and os.path.exists(os.path.join(base, "7-Zip", "7z.exe")):
+                return os.path.join(base, "7-Zip", "7z.exe")
+    return None
+
+
+def _run_hidden(args, **kw):
+    """Windows에서 콘솔 창이 깜빡이지 않게 실행."""
+    import subprocess
+    if sys.platform == "win32":
+        kw["creationflags"] = kw.get("creationflags", 0) | 0x08000000  # CREATE_NO_WINDOW
+    return subprocess.run(args, capture_output=True, **kw)
+
+
 class ArchiveError(Exception):
     pass
 
@@ -174,10 +200,17 @@ class SevenZipBackend(ArchiveBackend):
             with self._py7zr.SevenZipFile(self.path, "r", password=self.password) as z:
                 z.extract(path=tmp, targets=self._names)
         except Exception as e:
-            shutil.rmtree(tmp, ignore_errors=True)
-            if "password" in str(e).lower():
-                raise PasswordRequired(str(e)) from e
-            raise ArchiveError(str(e)) from e
+            # py7zr가 지원하지 않는 필터(BCJ2 등)면 7-Zip 실행 파일로 재시도
+            exe = find_7z()
+            ok = False
+            if exe and "password" not in str(e).lower():
+                r = _run_hidden([exe, "x", "-y", f"-o{tmp}", f"-p{self.password or ''}", self.path])
+                ok = r.returncode == 0
+            if not ok:
+                shutil.rmtree(tmp, ignore_errors=True)
+                if "password" in str(e).lower():
+                    raise PasswordRequired(str(e)) from e
+                raise ArchiveError(str(e)) from e
         shutil.rmtree(self._dir, ignore_errors=True)
         os.replace(tmp, self._dir)
         (self._dir / ".done").write_text("ok")
@@ -209,16 +242,15 @@ def _configure_rar():
         if p.exists():
             rarfile.UNRAR_TOOL = str(p)
             break
-    for cand in ("7z.exe", "7z"):
-        p = tools / cand
-        if p.exists():
-            rarfile.SEVENZIP_TOOL = str(p)
+    seven = find_7z()
+    if seven:
+        rarfile.SEVENZIP_TOOL = seven
     if sys.platform == "win32":
         win_tar = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "tar.exe"
         if win_tar.exists():
             rarfile.BSDTAR_TOOL = str(win_tar)
     try:
-        rarfile.tool_setup()
+        rarfile.tool_setup(force=True)
     except rarfile.RarCannotExec:
         pass
     _rar_configured = True
@@ -251,7 +283,8 @@ class RarBackend(ArchiveBackend):
             try:
                 return self.rf.read(name)
             except self._rarfile.RarCannotExec as e:
-                raise ArchiveError("RAR 압축 해제 도구를 찾지 못했습니다. tools 폴더에 UnRAR.exe를 넣어주세요.") from e
+                raise ArchiveError("RAR 압축 해제 도구를 찾지 못했습니다.\n"
+                                   "Ellview 폴더의 tools 안에 7z.exe+7z.dll 또는 UnRAR.exe를 넣어주세요.") from e
             except self._rarfile.PasswordRequired as e:
                 raise PasswordRequired(str(e)) from e
             except (self._rarfile.Error, OSError) as e:
