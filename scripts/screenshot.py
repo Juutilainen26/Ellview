@@ -79,7 +79,8 @@ def main():
     from PySide6.QtGui import QMouseEvent
     w.open_any(lib["folder"])
     for name, x in (("13_hover_left", 30), ("14_hover_right", w.viewer.width() - 30)):
-        ev = QMouseEvent(QEvent.MouseMove, QPointF(x, 300), w.viewer.mapToGlobal(QPointF(x, 300)),
+        cy = w.viewer.height() / 2
+        ev = QMouseEvent(QEvent.MouseMove, QPointF(x, cy), w.viewer.mapToGlobal(QPointF(x, cy)),
                          Qt.NoButton, Qt.NoButton, Qt.NoModifier)
         app.sendEvent(w.viewer, ev)
         shot(name)

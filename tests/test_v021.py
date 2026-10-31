@@ -49,7 +49,7 @@ def test_arrow_and_wheel_never_change_file(win, lib):
         QTest.keyClick(win, Qt.Key_Right)
         wheel_down(win.viewer)
         QTest.keyClick(win, Qt.Key_Space)
-    QTest.mouseClick(win.viewer, Qt.LeftButton, Qt.NoModifier, QPoint(win.viewer.width() - 5, 200))
+    QTest.mouseClick(win.viewer, Qt.LeftButton, Qt.NoModifier, QPoint(win.viewer.width() - 5, win.viewer.height() // 2))
     assert base(win) == "01_folder" and win.index == len(win.book) - 1
     t = win.viewer.toast.text()
     assert win.viewer.toast.isVisible() and "마지막 페이지" in t and "02_한글.zip" in t and "]" in t

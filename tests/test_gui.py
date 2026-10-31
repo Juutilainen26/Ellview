@@ -113,7 +113,7 @@ def test_formats_folder_shows_error_page_without_crash(win, lib, qapp):
 def test_side_click_is_immediate_and_double_click_center_fullscreen(win, lib, qapp):
     win.open_any(lib["folder"])
     v = win.viewer
-    QTest.mouseClick(v, Qt.LeftButton, Qt.NoModifier, QPoint(v.width() - 10, 100))
+    QTest.mouseClick(v, Qt.LeftButton, Qt.NoModifier, QPoint(v.width() - 10, v.height() // 2))
     assert win.index == 1, "기다림 없이 바로 넘어감"
     QTest.mouseDClick(v, Qt.LeftButton, Qt.NoModifier, QPoint(v.width() // 2, v.height() // 2))
     qapp.processEvents()

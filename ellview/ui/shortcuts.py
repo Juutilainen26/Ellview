@@ -7,7 +7,7 @@ from __future__ import annotations
 
 # (id, 표시 이름, 기본 단축키 목록, 분류)
 ACTIONS: list[tuple[str, str, list[str], str]] = [
-    ("open_file", "파일 열기", ["Ctrl+O"], "파일"),
+    ("open_file", "파일 열기", ["Ctrl+O", "F2"], "파일"),
     ("open_folder", "폴더 열기", ["Ctrl+Shift+O"], "파일"),
     ("reload", "다시 읽기", ["F5"], "파일"),
     ("open_location", "파일 위치 열기", ["Ctrl+E"], "파일"),
@@ -52,8 +52,8 @@ ACTIONS: list[tuple[str, str, list[str], str]] = [
     ("copy_image", "이미지 복사", ["Ctrl+C"], "편집"),
     ("copy_path", "경로 복사", ["Ctrl+Shift+C"], "편집"),
 
-    ("add_bookmark", "책갈피 추가", ["Ctrl+D"], "책갈피"),
-    ("show_bookmarks", "책갈피 목록", ["Ctrl+B"], "책갈피"),
+    ("add_bookmark", "책갈피 추가", ["B"], "책갈피"),
+    ("show_bookmarks", "책갈피 목록", ["F3"], "책갈피"),
 
     ("settings", "설정...", ["Ctrl+,"], "도구"),
     ("check_update", "업데이트 확인", [], "도구"),

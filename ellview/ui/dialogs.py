@@ -144,7 +144,7 @@ class SettingsDialog(QDialog):
         f.addRow(self.resume)
         self.wheel = _combo([("page", "페이지 넘기기 (넘치면 스크롤 후 넘김)"), ("scroll", "스크롤만")], settings["wheel_mode"])
         f.addRow("마우스 휠", self.wheel)
-        self.click_nav = QCheckBox("화면 양 끝(5분의 1 영역) 클릭으로 페이지 이동")
+        self.click_nav = QCheckBox("화면 양 끝 가운데(가로 5분의 1 × 세로 30%) 클릭으로 페이지 이동")
         self.click_nav.setChecked(settings["click_navigation"])
         f.addRow(self.click_nav)
         self.updates = QCheckBox("시작할 때 업데이트 확인")
@@ -333,7 +333,7 @@ def shortcut_help_html(overrides: dict) -> str:
         ks = ", ".join(keys_for(aid, overrides)) or "-"
         rows.append(f"<tr><td style='padding-right:24px'>{label}</td><td><code>{ks}</code></td></tr>")
     extra = ("<p><b>마우스</b><br>휠: 페이지 이동 (넘치는 이미지는 스크롤 후 이동) · Ctrl+휠: 확대/축소<br>"
-             "화면 맨 왼쪽/오른쪽 5분의 1 영역 클릭: 이전/다음 (마우스를 올리면 화살표 표시)<br>"
+             "화면 양 끝 5분의 1 칸의 세로 가운데 영역 클릭: 이전/다음 (마우스를 올리면 화살표 표시)<br>"
              "가운데 끌기: 이동 · 가운데 더블클릭: 전체 화면 · 오른쪽 클릭: 메뉴<br>"
              "파일/폴더를 창에 끌어다 놓으면 바로 열립니다.</p>")
     return f"<h3>{APP_NAME} 단축키</h3><table>{''.join(rows)}</table>{extra}"

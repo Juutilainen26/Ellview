@@ -11,7 +11,8 @@ from ellview.core.loader import Decoded
 from ellview.ui.animation import AnimPlayer
 
 FIT_MODES = ("window", "width", "height", "original")
-SIDE_ZONE = 0.2  # 화면을 세로로 5등분했을 때 맨 왼쪽/오른쪽 한 칸만 클릭 넘김 영역
+SIDE_ZONE = 0.2   # 가로: 화면을 5등분했을 때 맨 왼쪽/오른쪽 한 칸
+BAND_ZONE = 0.3   # 세로: 그 칸 중 가운데 30%만 클릭 넘김 영역 (위·아래 35%씩은 제외)
 
 
 class PageImage:
@@ -350,10 +351,15 @@ class Viewer(QWidget):
         w, h = self.width(), self.height()
         zw = w * SIDE_ZONE
         x0 = 0 if zone == "left" else w - zw
-        p.fillRect(QRectF(x0, 0, zw, h), QColor(255, 255, 255, 14))
+        bh = h * BAND_ZONE
+        y0 = (h - bh) / 2
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(255, 255, 255, 16))
+        p.drawRoundedRect(QRectF(x0 + 4, y0, zw - 8, bh), 10, 10)
         cx = x0 + zw / 2
         cy = h / 2
-        r = max(22.0, min(34.0, zw * 0.22))
+        r = max(18.0, min(34.0, zw * 0.22, bh * 0.35))
         p.setRenderHint(QPainter.Antialiasing, True)
         p.setPen(Qt.NoPen)
         p.setBrush(QColor(0, 0, 0, 140))
@@ -368,8 +374,12 @@ class Viewer(QWidget):
         path.lineTo(QPointF(cx - d * a * 0.5, cy + a))
         p.drawPath(path)
 
-    def zone_at(self, x: float) -> str | None:
+    def zone_at(self, x: float, y: float) -> str | None:
+        """클릭 넘김 영역: 양 끝 20% 칸 중 세로 가운데 30%. 그 밖은 None(가운데 영역과 같은 취급)."""
         if not self.click_navigation or not self.pages:
+            return None
+        h = self.height()
+        if not (h * (1 - BAND_ZONE) / 2 <= y <= h * (1 + BAND_ZONE) / 2):
             return None
         if x < self.width() * SIDE_ZONE:
             return "left"
@@ -405,7 +415,7 @@ class Viewer(QWidget):
 
     def mouseMoveEvent(self, e):
         if not e.buttons():
-            self._set_hover(self.zone_at(e.position().x()))
+            self._set_hover(self.zone_at(e.position().x(), e.position().y()))
             return
         if self._drag_pos is not None and e.buttons() & Qt.LeftButton:
             d = e.position() - self._drag_pos
@@ -424,30 +434,30 @@ class Viewer(QWidget):
             self._hover_zone = None
             if not self._moved and self._press_pos is not None and self.click_navigation:
                 # 양옆 영역은 기다리지 않고 바로 넘김 (가운데 영역만 더블클릭=전체 화면에 사용)
-                self._pending_click = self._press_pos.x()
+                self._pending_click = self._press_pos
                 self._do_click()
             self._drag_pos = None
             self._press_pos = None
-            self._set_hover(self.zone_at(e.position().x()))
+            self._set_hover(self.zone_at(e.position().x(), e.position().y()))
         super().mouseReleaseEvent(e)
 
     def _do_click(self):
-        x = self._pending_click
+        pos = self._pending_click
         self._pending_click = None
-        if x is None:
+        if pos is None:
             return
-        zone = self.zone_at(x)
+        zone = self.zone_at(pos.x(), pos.y())
         if zone is None:
             return
         go_next = (zone == "right") != self.rtl  # RTL이면 왼쪽 클릭이 다음
         (self.nextRequested if go_next else self.prevRequested).emit()
 
-    def _in_side_zone(self, x: float) -> bool:
-        return self.zone_at(x) is not None
+    def _in_side_zone(self, pos) -> bool:
+        return self.zone_at(pos.x(), pos.y()) is not None
 
     def mouseDoubleClickEvent(self, e):
         if e.button() == Qt.LeftButton:
-            if self._in_side_zone(e.position().x()):
+            if self._in_side_zone(e.position()):
                 # 양옆을 빠르게 두 번 누른 것 = 두 장 넘기기 (두 번째 넘김은 이어지는 release에서 처리)
                 self._press_pos = e.position()
                 self._drag_pos = e.position()

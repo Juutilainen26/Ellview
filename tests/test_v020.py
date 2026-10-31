@@ -41,7 +41,8 @@ def pump(qapp, sec):
         time.sleep(0.01)
 
 
-def hover(v, x, y=200):
+def hover(v, x, y=None):
+    y = v.height() / 2 if y is None else y
     ev = QMouseEvent(QEvent.MouseMove, QPointF(x, y), v.mapToGlobal(QPointF(x, y)),
                      Qt.NoButton, Qt.NoButton, Qt.NoModifier)
     QApplication.sendEvent(v, ev)
@@ -52,20 +53,21 @@ def test_zone_is_outer_fifth(win, lib):
     win.open_any(lib["folder"])
     v = win.viewer
     w = v.width()
-    assert v.zone_at(w * 0.19) == "left"
-    assert v.zone_at(w * 0.21) is None
-    assert v.zone_at(w * 0.5) is None
-    assert v.zone_at(w * 0.79) is None
-    assert v.zone_at(w * 0.81) == "right"
+    y = v.height() / 2
+    assert v.zone_at(w * 0.19, y) == "left"
+    assert v.zone_at(w * 0.21, y) is None
+    assert v.zone_at(w * 0.5, y) is None
+    assert v.zone_at(w * 0.79, y) is None
+    assert v.zone_at(w * 0.81, y) == "right"
 
 
 def test_click_inside_old_zone_no_longer_turns(win, lib):
     win.open_any(lib["folder"])
     v = win.viewer
-    QTest.mouseClick(v, Qt.LeftButton, Qt.NoModifier, QPoint(int(v.width() * 0.3), 200))
-    QTest.mouseClick(v, Qt.LeftButton, Qt.NoModifier, QPoint(int(v.width() * 0.7), 200))
+    QTest.mouseClick(v, Qt.LeftButton, Qt.NoModifier, QPoint(int(v.width() * 0.3), v.height() // 2))
+    QTest.mouseClick(v, Qt.LeftButton, Qt.NoModifier, QPoint(int(v.width() * 0.7), v.height() // 2))
     assert win.index == 0
-    QTest.mouseClick(v, Qt.LeftButton, Qt.NoModifier, QPoint(int(v.width() * 0.9), 200))
+    QTest.mouseClick(v, Qt.LeftButton, Qt.NoModifier, QPoint(int(v.width() * 0.9), v.height() // 2))
     assert win.index == 1
 
 
@@ -100,17 +102,17 @@ def test_hover_shows_arrow_and_hand_cursor(win, lib):
 
 def test_no_zone_without_pages_or_when_disabled(win, lib):
     v = win.viewer
-    assert v.zone_at(5) is None
+    assert v.zone_at(5, v.height() / 2) is None
     win.open_any(lib["folder"])
     v.click_navigation = False
-    assert v.zone_at(5) is None
+    assert v.zone_at(5, v.height() / 2) is None
 
 
 def test_rtl_left_zone_is_next(win, lib):
     win.open_any(lib["folder"])
     win.act_toggle_rtl()
     v = win.viewer
-    QTest.mouseClick(v, Qt.LeftButton, Qt.NoModifier, QPoint(10, 200))
+    QTest.mouseClick(v, Qt.LeftButton, Qt.NoModifier, QPoint(10, v.height() // 2))
     assert win.index == 1
 
 
